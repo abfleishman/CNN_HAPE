@@ -31,7 +31,7 @@ a$Species[str_detect(string = basename(a$Path),"UMP")]<-"Strike"
 a$Species<-toupper(a$Species)
 
 # filter for only 2014-2016 and drop problem child
-a<-filter(a,year%in%2014:2017,Project!="FWS_Rose_Atoll_2014",Species=="HAPE") 
+a<-filter(a,year%in%2014:2017,Project!="FWS_Rose_Atoll_2014",Species=="HAPE",!grepl("ToAudit|NoAudit|Eval|Comparison",Path)) 
 
 # count unique species for each project and list the spp. names 
 Spp<-a %>% group_by(Project) %>% 
@@ -42,34 +42,50 @@ Spp<-a %>% group_by(Project) %>%
 data.list1 <- lapply(a$Path, fread,sep=",")
 head(data.list1,1)
 
-# Add a project 
+# Add a project, fix location and rating, and add the csv path
 
 for(i in 1:length(a$Project)){
   
   data.list1[[i]]$Project<-a$Project[i]
   data.list1[[i]]$location<-as.character(data.list1[[i]]$location)
+  data.list1[[i]]$rating<-as.character(data.list1[[i]]$rating)
   data.list1[[i]]$csv_path<-a$Path[i]
   
 }
+
 Names<-NULL
 for(i in 1:length(a$Project)){
   Names<-c(Names,names(data.list1[[i]]))
 }
-# make all the "locations" columns character
-for(i in c(1:length(data.list1))){
-  
-  data.list1[[i]]$location<-as.character(data.list1[[i]]$location)
-}
-# add file_duration_sec if missing
-for(i in c(1:length(data.list1))){
-  if(!"file_duration_sec" %in% colnames(data.list1[[i]])) next
-  data.list1[[i]]<-select(data.list1[[i]],Project,location,file,file_duration_sec)
-}
+table(Names)
+
 
 # concatenate into one big data.frame and keep only the columns that I want 
 OurData <- bind_rows(data.list1) %>% 
-  select(Project,location,file,file_duration_sec,year,month,day,hour,minute,second,csv_path,start_in_file,end_in_file,rating) 
+  select(Project,location,file,file_duration_sec,start_in_file,end_in_file,duration,year,month,day,hour,minute,second,rating,csv_path) 
 
 OurData$csv_file<- tools::file_path_sans_ext(basename(OurData$csv_path))
+head(OurData)
+OurData$Savetag<-grepl("(audit_HAPE_21Apr14$|audit_HAPE_21Apr$|_audit_HAPE_21Apr_KJD$|_audit_HAPE_18Jun14$)",OurData$csv_file)
+table(OurData$Savetag)
 
-table(OurData$rating)
+unique(OurData$csv_path[OurData$Savetag==F])
+
+# Read in the NAS scan data and find only the fig files with _audi --------
+
+
+library(readr)
+library(data.table)
+nas<-fread(input = "//NAS1/NAS3_2Mar15/CMI_DataCatalog/NAS_StreamScan.txt")
+figs<- nas %>% filter(str_detect(V2,".fig"))
+figs<-figs %>% filter(!str_detect(V2,"_init")) %>% rename(size=V1,path=V2)
+head(figs)
+figs$fig<-basename(figs$path)
+
+figs$filestream<-basename(dirname(figs$path))
+figs$project<-basename(dirname(dirname(figs$path)))
+
+NESH<-figs %>% filter(str_detect(figs$fig,"audit_NESH"))
+HAPE<-figs %>% filter(str_detect(figs$fig,"audit_HAPE")) %>% arrange(filestream)
+
+head(HAPE)
