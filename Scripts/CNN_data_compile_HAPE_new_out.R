@@ -17,7 +17,14 @@ library(readr)
 
 nas<-fread(input = "//NAS1/NAS3_2Mar15/CMI_DataCatalog/NAS_FigScan.txt")
 figs<- nas %>% filter(str_detect(V2,".fig"))
-figs<-figs %>% filter(!str_detect(V2,"_init")) %>% rename(size=V1,path=V2) %>% filter(!grepl("ToAudit|NoAudit|noAudit|Eval|Comparison|CMI_TrainingData",path))
+figs<-figs %>% filter(!str_detect(V2,"_init")) %>% rename(size=V1,path=V2) %>% 
+  filter(!grepl("ToAudit|NoAudit|noAudit|Eval|Comparison|CMI_TrainingData",path)) %>% 
+  filter(grepl("HAPE|Hape|hape",path))
+head(figs)
+
+# to fig to csv
+writeLines(figs$path,'HAPE2csv.txt',sep = "\n")
+
 figs$sub_path<-gsub( '.*Figs/','',figs$path)
 figs$project<-str_extract(figs$sub_path,"[^/]*")
 head(figs)
