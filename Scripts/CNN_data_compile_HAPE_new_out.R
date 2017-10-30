@@ -35,19 +35,18 @@ figs$filestream<-basename(dirname(figs$path))
 figs$file<-tools::file_path_sans_ext(basename(figs$path))
 
 # Find Files and project size ---------------------------------------------
-a<-data.frame(Path=as.character(list.files(path = "//NAS1/NAS3_2Mar15/All_HAPE",full.names = T,recursive = T)))
+a<-data.frame(Path=as.character(list.files(path = "//NAS1/NAS3_2Mar15/All_HAPE/mnt",full.names = T,recursive = T)))
 # a<-filter(a,str_detect(a$Path,"Log_Files"),str_detect(a$Path,".csv"),!str_detect(a$Path,".jpg")) %>% mutate(Path=as.character(Path))
 
 # add a project
-a$Project<-str_extract(a$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*")
+a$Project<-str_extract(a$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*")
 a$Project<-str_extract(a$Project,"[^/]*$")
 
 # Add a year
-a$year<-str_extract(a$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*")
-a$year<-str_extract(a$year,"[^/]*$")
+a$year<-str_extract(a$Project,"[0-9]{4}")
 
 a$Species<-"HAPE"
-
+head(a)
 # this goes through all the log files and reads the CSV in to R
 data.list1 <- lapply(as.character(a$Path), fread,sep=",")
 head(data.list1,1)
@@ -152,7 +151,7 @@ map_table.spdf.t$grid<-over(map_table.spdf.t,customGrid50)$x
 
 dat1<-left_join(map_table,as.data.frame(map_table.spdf.t)) %>% distinct() %>% dplyr::select(Latitude,Longitude, SPID,Project,grid) %>% right_join(dat)
 
-
+table(dat1$audit_file,dat1$rating)
 
 # select a random subset of events ----------------------------------------
 
@@ -160,10 +159,10 @@ dat1<-left_join(map_table,as.data.frame(map_table.spdf.t)) %>% distinct() %>% dp
 nGrid<-data.frame(table(dat1$grid,dat1$rating))
 
 # select only the positives and the number of per grid so get ~5000
-posL<-5000/(nGrid %>% filter(Var2=="5",Freq>102) %>% arrange(Freq) %>% nrow()) 
+posL<-floor(5000/(nGrid %>% filter(Var2=="5",Freq>102) %>% arrange(Freq) %>% nrow()) )
 
 # select only the p rows and the number of per grid so get ~50000
-negL<-50000/(nGrid %>% filter(Var2=="P",Freq>1500) %>% arrange(Freq) %>% nrow()) 
+negL<-floor(50000/(nGrid %>% filter(Var2=="P",Freq>1500) %>% arrange(Freq) %>% nrow()) )
 
 set.seed(1) # for randomization and reproducibility
 
@@ -189,7 +188,7 @@ write.csv(hapePos,"HAPE_CNN_Mother_test.csv",row.names = F)
 hapePos_streams<-hapePos %>% group_by(audit_file) %>% summarise(npos=n())
 
 neg1<-dat1 %>% 
-  filter(rating=="P") %>% 
+  filter(rating=="0") %>% 
   group_by(grid) %>% 
   filter(n()>negL) %>% 
   sample_n(negL)
@@ -215,9 +214,9 @@ hist(hapeNeg1$start_in_file)
 hapeNeg1_streams<-hapeNeg1 %>% group_by(audit_file) %>% summarise(nneg=n())
 hape_streams<-full_join(hapeNeg1_streams,hapePos_streams) %>% mutate(nneg=ifelse(is.na(nneg),0,nneg),npos=ifelse(is.na(npos),0,npos))
 
-hape_streams$outpath<-paste0("\\\\NAS1\\NAS1_2Jun14\\Motherships\\HAPE_CNN_Mother_test\\",gsub(".*Figs\\\\","",hape_streams$audit_file))
+hape_streams$outpath<-paste0("\\\\NAS1\\NAS1_2Jun14\\Motherships\\HAPE_CNN_Mother_test\\",gsub(".*Figs/","",hape_streams$audit_file))
+hape_streams$audit_file<-paste0("\\\\NAS1\\",gsub(".*mnt/","",hape_streams$audit_file))
 hape_streams$outdir<-dirname(hape_streams$outpath)
-
 write_csv(hape_streams,"hape_streams.csv")
 
 library(mapdata)
@@ -231,7 +230,8 @@ w<-map_data("worldHires") %>% filter(region=="Hawaii")
 
 library(plotly)
 
-p<-ggplot(w)+geom_polygon(aes(x=long,y=lat,group=group))+coord_fixed()+geom_point(data=as.data.frame(map_table.spdf.t),aes(x=as.numeric(Longitude),y=as.numeric(Latitude),color=as.factor(grid)))
+p<-ggplot(w)+geom_polygon(aes(x=long,y=lat,group=group))+coord_fixed()+
+  geom_point(data=as.data.frame(map_table.spdf.t),aes(x=as.numeric(Longitude),y=as.numeric(Latitude),color=as.factor(grid)))
 ggplotly(p)
 table(w$region=="Hawaii")
 
