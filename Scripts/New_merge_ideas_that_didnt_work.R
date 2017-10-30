@@ -1,6 +1,7 @@
 library(dplyr)
 library(stringr)
 library(data.table)
+
 figs<-read.csv("D:/CM,Inc/CMIAuditor/db/figDb.csv",sep=",",header = FALSE,col.names = c("fig","path"),stringsAsFactors = F) %>% 
   mutate(path1=gsub("^[^/]*/[^/]*/[^/]*",'',path), project=str_split_fixed(gsub("^[/Sounds/]*",'',path1),pattern = "/",n = 2)[,1]) %>%
   filter(str_detect(fig,"mnt"),!str_detect(fig,"Mothership"),!str_detect(fig,"Backup_From_CT_ASUS"),str_detect(fig,"hape|HAPE"))  %>% 
@@ -14,8 +15,8 @@ nas<-fread("//NAS1/NAS3_2Mar15/CMI_DataCatalog/NAS_SoundScan1.txt",sep="\t",head
 head(nas)
 head(figs)
 
-miss<-data.frame(table(figs$project[!figs$project%in%unique(nas1$project)]))
-missN<-data.frame(table(figs$project[!figs$project%in%unique(nas1$project)]))
+miss<-data.frame(table(figs$project[!figs$project%in%unique(nas$project)]))
+missN<-data.frame(table(figs$project[!figs$project%in%unique(nas$project)]))
 
 library(fuzzyjoin)
 hm<-stringdist_left_join(data.frame(project=(miss$Var1)),nas,by="project",max_dist=5,distance_col="dist") %>% group_by(project.x) %>% 
