@@ -68,10 +68,10 @@ FigDB_HAPE_NotNAS$OldPathPrefix<-NULL
 NotNASRounds<- as.tibble(unique(FigDB_HAPE_NotNAS$Round)) %>% 
   select(OldRound = value) %>% 
   mutate(NewRound = 'Null') 
-NotNASRounds$NewRound<- ifelse(NotNASRounds$OldRound =='FirstWind_ROV_2013_r1', '', NotNASRounds$NewRound)  
+NotNASRounds$NewRound<- ifelse(NotNASRounds$OldRound =='FirstWind_ROV_2013_r1', '', NotNASRounds$NewRound)
+NotNASRounds$NewRound<- ifelse(NotNASRounds$OldRound =='KauaiULP_10Apr14', '', NotNASRounds$NewRound)  
 NotNASRounds$NewRound<- ifelse(NotNASRounds$OldRound =='KESRP_Lehue_2013_R1', 'NAS3_2Mar15/Sounds/KESRP_Lehua_2013_R1_FLAC', NotNASRounds$NewRound)  
 NotNASRounds$NewRound<- ifelse(NotNASRounds$OldRound =='KESRP_Lehua_2014_r2', 'NAS3_2Mar15/Sounds/KESRP_Lehua_2013_R2_FLAC', NotNASRounds$NewRound)  
-NotNASRounds$NewRound<- ifelse(NotNASRounds$OldRound =='KauaiULP_10Apr14', '', NotNASRounds$NewRound)  
 NotNASRounds$NewRound<- ifelse(NotNASRounds$OldRound =='KIUC_ULP_2013', 'NAS3_2Mar15/Sounds/KESRP_ULPHONO_2013_FLAC', NotNASRounds$NewRound)  
 ## apply fixes
 FigDB_HAPE_NotNAS<- left_join(x = FigDB_HAPE_NotNAS, y = NotNASRounds, by = c('Round'='OldRound'))
@@ -113,12 +113,10 @@ FigDB_HAPE_OldNewPaths<- FigDB_HAPE_OldNewPaths1 %>%
   group_by(FigRound, OldPath_Round, NewPath) %>% 
   summarise(x = max(SoundPath)) %>% 
   select(FigPath = FigRound, OldPath = OldPath_Round, NewPath)
+# ## save out csv
+# write_csv(x = FigDB_HAPE_OldNewPaths, path = '//nas1/NAS3_2Mar15/CMI_DataCatalog/archive/FolderMoves/HAPEFigSounds_OldNewPaths.csv', col_names = F)
 
-## save out csv
-write_csv(x = FigDB_HAPE_OldNewPaths, path = '//nas1/NAS3_2Mar15/CMI_DataCatalog/archive/FolderMoves/HAPEFigSounds_OldNewPaths.csv', col_names = F)
-
-
-##
+## make object for changeWavDirBatch command
 FigDB_HAPE_ChngWvDirBtch<- FigDB_HAPE_OldNewPaths1 %>% 
   filter(NewRound != '') %>%
   mutate(NewPath = paste('//NAS1/', NewRound, sep = '')) %>%
@@ -133,9 +131,3 @@ FigDB_HAPE_ChngWvDirBtch$OldPath<- ifelse(str_detect(FigDB_HAPE_ChngWvDirBtch$Ol
 FigDB_HAPE_ChngWvDirBtch$FigPath<- gsub( '/', '\\\\', FigDB_HAPE_ChngWvDirBtch$FigPath)
 FigDB_HAPE_ChngWvDirBtch$OldPath<- gsub( '/', '\\\\', FigDB_HAPE_ChngWvDirBtch$OldPath)
 FigDB_HAPE_ChngWvDirBtch$NewPath<- gsub( '/', '\\\\', FigDB_HAPE_ChngWvDirBtch$NewPath)
-
-paste('changeWavDirBatch(', FigDB_HAPE_ChngWvDirBtch$FigPath, FigDB_HAPE_ChngWvDirBtch$OldPath, FigDB_HAPE_ChngWvDirBtch$NewPath, 'wav', 'flac', ')', sep = '')
-
-changeWavDirBatch('\\NAS1\NAS1_2Jun14\Figs\IC_Pinzon_2012','NAS1_2Jun14\Sounds\IC_Pinzon_2012','NAS2_9Oct14\Sounds\IC_Pinzon_2012_FLAC','','wav', 'flac')
-
-
