@@ -1,65 +1,56 @@
-# HAPE
 
-# This scripe relys on csv log files from log2csv but must have audit_file field
-# or will not work.  It also relys on a compiled field data file which is up to 
-# date as of 2017-09-06.  
+library(stringr)
+library(tidyverse)
+library(data.table)
+library(lubridate)
 
 rm(list=ls())
+gc()
 
-library(data.table)
-library(dplyr)
-library(tidyr)
-library(stringr)
-
-library(lubridate)
-library(ggplot2)
-library(readr)
-
-# Make list of figs to fig2csv
-nas<-fread(input = "//NAS1/NAS3_2Mar15/CMI_DataCatalog/NAS_FigScan.txt")
-figs<- nas %>% filter(str_detect(V2,".fig"))
-figs<-figs %>% filter(!str_detect(V2,"_init")) %>% rename(size=V1,path=V2) %>%
-  filter(!grepl("ToAudit|NoAudit|noAudit|Eval|Comparison|CMI_TrainingData",path)) %>%
-  filter(grepl("HAPE|Hape|hape",path))
-head(figs)
-
-figsold<-fread(input = '//NAS1/NAS3_2Mar15/All_HAPE/HAPE2csv.txt', header = F)
-head(figsold)
-
-figsnew<-filter(figs,!(path %in% figsold$V1))
-
-# to fig to csv
-writeLines(figsnew$path,'HAPE2csv_more_20Feb18.txt',sep = "\n")
-
-figs$sub_path<-gsub( '.*Figs/','',figs$path)
-figs$project<-str_extract(figs$sub_path,"[^/]*")
-head(figs)
-figs$fig<-basename(figs$path)
-
-figs$filestream<-basename(dirname(figs$path))
-# figs$project<-basename(dirname(dirname(figs$path)))
-figs$file<-tools::file_path_sans_ext(basename(figs$path))
+# HAPE
 
 # Find Files and project size ---------------------------------------------
-a<-data.frame(Path=as.character(list.files(path = "//NAS1/NAS3_2Mar15/All_HAPE/mnt",full.names = T,recursive = T)))
-# a<-filter(a,str_detect(a$Path,"Log_Files"),str_detect(a$Path,".csv"),!str_detect(a$Path,".jpg")) %>% mutate(Path=as.character(Path))
+HAPElogfiles<-data.frame(Path=as.character(list.files(path = "//NAS1/NAS3_2Mar15/All_HAPE/mnt",full.names = T,recursive = T)))
+# HAPElogfiles<-filter(HAPElogfiles,str_detect(HAPElogfiles$Path,"Log_Files"),str_detect(HAPElogfiles$Path,".csv"),!str_detect(HAPElogfiles$Path,".jpg")) %>% mutate(Path=as.character(Path))
 
-# add a project
-a$Project<-str_extract(a$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*")
-a$Project<-str_extract(a$Project,"[^/]*$") # keeps round
+# add info about the project/fig
+HAPElogfiles$Path<-as.character(HAPElogfiles$Path)
+HAPElogfiles$RoundFolder<-str_extract(str_extract(HAPElogfiles$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*"),"[^/]*$")
+HAPElogfiles$Project<-str_replace(str_replace(str_replace(HAPElogfiles$RoundFolder,'_BACKUP',''),'_(R|r)[0-9]{1,2}.*$',''),'_DateFiltered','')
+HAPElogfiles$ProjectYear<-str_extract(HAPElogfiles$Project,"[0-9]{4}")
+HAPElogfiles$Species<-"HAPE"
+head(HAPElogfiles)
+HAPElogfiles$DirName<-str_extract(str_extract(HAPElogfiles$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*"),"[^/]*$")
+HAPElogfiles$AuditFigName<-str_replace(basename(HAPElogfiles$Path),'.csv','')
+HAPElogfiles$BaseFigName<-str_replace(HAPElogfiles$AuditFigName,'(_audit.*$|audit.*$|_dnnClass.*$|_all95.*$|_MMaudit.*$)','')
+HAPElogfiles$BaseFigPath<-paste0(dirname(HAPElogfiles$Path),'/',HAPElogfiles$BaseFigName,'.fig')
 
-# Add a year
-a$year<-str_extract(a$Project,"[0-9]{4}")
+# check out how many figs are in weird folder structures
+hm<-HAPElogfiles[which(HAPElogfiles$BaseFigName!=HAPElogfiles$DirName),]
+head(hm)
 
-a$Species<-"HAPE"
-head(a)
+# # reconstruct base fig path and check for duplicates
+# sum(duplicated(HAPElogfiles$BaseFigPath))
+# dups<-HAPElogfiles[duplicated(HAPElogfiles$BaseFigPath),]
+# dups<-bind_rows(dups,HAPElogfiles[duplicated(HAPElogfiles$BaseFigPath,fromLast=T),])
+# dups<-filter(dups,!duplicated(Path))
+# dups$keep=NA
+# dups$keep[str_detect(dups$AuditFigName,'(_DS_)|(_DTS_)')]=0
+# dups$keep[str_detect(dups$AuditFigName,'_all95_')]=0
+# write.csv(dups,'HAPEDuplicateLogs.csv')
+# rm(dups)
+
+dups<-read.csv('HAPEDuplicateLogs_edited.csv')
+# take out duplicates
+HAPElogfiles<-filter(HAPElogfiles,!(Path %in% dups$Path[dups$keep==0]))
+
 # this goes through all the log files and reads the CSV in to R
-data.list1 <- lapply(as.character(a$Path), fread,sep=",")
+data.list1 <- lapply(as.character(HAPElogfiles$Path), fread,sep=",")
 head(data.list1,1)
 
 # Checks which names are in the the csvs and gives a table of them
 Names<-NULL
-for(i in 1:length(a$Project)){
+for(i in 1:length(HAPElogfiles$Project)){
   Names<-c(Names,names(data.list1[[i]]))
 }
 table(Names)
@@ -67,23 +58,23 @@ table(Names)
 # concatenate into one big data.frame and keep only the columns that I want 
 OurData <- bind_rows(data.list1)
 
-# Extract date time info from the sound files because the fig2csv did not work for all files
-OurData$file2<-tools::file_path_sans_ext(OurData$file)
+# extract fig name from full audit file path
 OurData$audit_file_fig<-basename(tools::file_path_sans_ext(OurData$audit_file))
-OurData$file2<-gsub("_[0-9]{3}$|_[0-9]$","",OurData$file2)
-OurData$time<-str_extract(OurData$file2,"[0-9]{6}$")
-OurData$date<-str_extract(OurData$file2,"_[0-9]{8}_") %>% str_replace_all("_","") %>% ymd()
-OurData$DateTime<-ymd_hms(paste(OurData$date,OurData$time))
 
-OurData$year<-year(OurData$DateTime)
-OurData$month<-month(OurData$DateTime)
-OurData$day<-day(OurData$DateTime)
-OurData$hour<-hour(OurData$DateTime)
-OurData$minute<-minute(OurData$DateTime)
-OurData$second<-second(OurData$DateTime)
-
-head(OurData)
-# head(figs)
+# # Extract date time info from the sound files because the fig2csv did not work for all files
+# # Don't really need this...
+# OurData$file2<-tools::file_path_sans_ext(OurData$file)
+# OurData$time<-str_extract(OurData$file2,"([0-9]{6}$)|([0-9]{6}_000$)|([0-9]{6}_0$)|([0-9]{6}_1$)")
+# OurData$date<-str_extract(OurData$file2,"_[0-9]{8}_") %>% str_replace_all("_","") %>% ymd()
+# OurData$DateTime<-ymd_hms(paste(OurData$date,OurData$time))
+# OurData$year<-year(OurData$DateTime)
+# OurData$month<-month(OurData$DateTime)
+# OurData$day<-day(OurData$DateTime)
+# OurData$hour<-hour(OurData$DateTime)
+# OurData$minute<-minute(OurData$DateTime)
+# OurData$second<-second(OurData$DateTime)
+# head(OurData)
+# # adjust datetime for P rows?
 
 # read in SPID_Table from the FieldData_Compile.r -------------------------
 
@@ -103,8 +94,8 @@ OurData$DateTime2<- OurData$DateTime
 dat<-foverlaps(OurData,SPData,by.x=c("Sensor_Name","DateTime","DateTime2"),mult="first")
 head(dat)
 dat<-dat %>% dplyr::select(Sensor_Name,location,SPID, Project,  Latitude, Longitude, file, id,probeId,audit_file, file_duration_sec,
-                     start_in_file, end_in_file, duration, rating, DateTime, date, year, month, day,hour, minute, second,
-                      flux, flux_sensitive, burst,level, level_absolute, click)
+                           start_in_file, end_in_file, duration, rating, DateTime, date, year, month, day,hour, minute, second,
+                           flux, flux_sensitive, burst,level, level_absolute, click)
 head(dat)
 
 dat2<-dat %>% filter(is.na(dat$Latitude))
@@ -121,14 +112,14 @@ library(adehabitatMA)
 map_table<-dat %>% dplyr::select(Latitude,Longitude,SPID,Project) %>% distinct() %>% filter(!is.na(Longitude))
 
 map_table.spdf <- SpatialPointsDataFrame(coords=as.data.frame(cbind(as.numeric(map_table$Longitude),as.numeric(map_table$Latitude))),
-                                      data=map_table,
-                                      proj4string = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
+                                         data=map_table,
+                                         proj4string = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
 mean(map_table.spdf@bbox[1,])
 mean(map_table.spdf@bbox[2,])
 # Project data into laea
 map_table.spdf.t <- spTransform(map_table.spdf,
-                             CRS("+proj=laea +lat_0=20.69025 +lon_0=-157.8788 
-                                 +ellps=WGS84 +units=km +no_defs"))
+                                CRS("+proj=laea +lat_0=20.69025 +lon_0=-157.8788 
+                                    +ellps=WGS84 +units=km +no_defs"))
 
 map_table.spdf.t$x_laea<-round(coordinates(map_table.spdf.t)[,1],0)
 map_table.spdf.t$y_laea<-round(coordinates(map_table.spdf.t)[,2],0)
@@ -255,8 +246,3 @@ p<-ggplot(w)+geom_polygon(aes(x=long,y=lat,group=group))+coord_fixed()+
   geom_point(data=as.data.frame(map_table.spdf.t),aes(x=as.numeric(Longitude),y=as.numeric(Latitude),color=as.factor(grid)))
 ggplotly(p)
 table(w$region=="Hawaii")
-
-
-
-
-# SM_type, mic_type, spatial location, month,
