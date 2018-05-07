@@ -1,4 +1,6 @@
+
 rm(list=ls())
+gc()
 
 library(data.table)
 library(dplyr)
@@ -11,42 +13,49 @@ library(readr)
 
 # Find Files  ---------------------------------------------
 
-# a<-data.frame(Path=list.files(path = "D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis",pattern = ".csv",full.names = T,recursive = T))
-# b<-file.info(a$Path)
-# b<-mutate(b,Path=rownames(b))
-# b1<-b
-# a<-b%>% mutate(Path=as.character(Path)) %>% filter(!str_detect(Path,"Report/Tables|Hits|Presentation|CallsPerMin|metric|Metrics|hmm|Test|log2csv|NESH_Sep_2012|Rates|Teststrip|test_strip|Test_Strip|SUmmary|playback|Log_Files|log_files|Log_files|clip|Clip|R_output|R_Output|Results|Mean|mean|figures|Total|total|power|NewNames4|sun|Sun|rise|Rise|Twilight|twilight|Illu|illu|Moon|moon|TEMP|temp|Temp"),
-#                                                    str_detect(Path,"SPID|SPid|SPId|location|Location|survey|Survey|field|Field|site|Site|Deploy|deploy"),
-#                                                    size<500000,size>1)
-# a$Project<-str_extract(a$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*")
-# a$Project<-str_extract(a$Project,"[^/]*$")
-# 
-# a$year<-str_extract(a$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*")
-# a$year<-str_extract(a$year,"[^/]*$")
-# head(a,30)
-# 
-# a$mas<-duplicated(a$Project)|duplicated(a$Project,fromLast = T)
-# a1<-read_delim("deploy_list_raw_AF.tsv",delim = "\t") %>% mutate(year=as.character(year))
-# a<-left_join(a,a1)
-# table(a1$keep)
-# table(a$keep)
-# write_excel_csv(a,"deploy_list_raw.csv")
-# a<-read_delim("deploy_list_raw_AF.tsv",delim = "\t")
-a<-read_delim("deploy_list_raw.tsv",delim = "\t")
-a<-a %>% filter(keep==T)
+fdPaths<-data.frame(Path=list.files(path = "D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis",pattern = ".csv",full.names = T,recursive = T))
+fdPaths$Path<-as.character(fdPaths$Path)
+fdInfo<-file.info(fdPaths$Path)
+fdInfo<-mutate(fdInfo,Path=rownames(fdInfo))
+fdInfo<-fdInfo %>% mutate(Path=as.character(Path)) %>% filter(!str_detect(Path,"Reports/Figures|Report/Tables|Hits|Presentation|CallsPerMin|metric|Metrics|hmm|Test|log2csv|NESH_Sep_2012|Rates|Teststrip|test_strip|Test_Strip|SUmmary|playback|Log_Files|log_files|Log_files|clip|Clip|R_output|R_Output|Results|Mean|mean|figures|Total|total|power|NewNames4|sun|Sun|rise|Rise|Twilight|twilight|Illu|illu|Moon|moon|TEMP|temp|Temp|conflicted copy|DataLossDueToFieldData|MappingTable"),
+                                                   str_detect(Path,"SPID|SPid|SPId|location|Location|survey|Survey|field|Field|site|Site|Deploy|deploy"),
+                                                   size<500000,size>1)
+fdInfo<-arrange(fdInfo,Path)
+fdInfo$Project<-str_extract(str_extract(fdInfo$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*"),"[^/]*$")
+fdInfo$year<-str_extract(str_extract(fdInfo$Path,"[^/]*/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*"),"[^/]*$")
+head(fdInfo,30)
+
+fdInfo$mas<-duplicated(fdInfo$Project)|duplicated(fdInfo$Project,fromLast = T)
+
+fdInfo_AF<-read_delim("D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/deploy_list_raw.tsv",delim = "\t") %>% mutate(year=as.character(year))
+table(fdInfo_AF$keep)
+length(which(fdInfo$Path %in% fdInfo_AF$Path))
+length(which(!fdInfo$Path %in% fdInfo_AF$Path))
+table(fdInfo_AF$keep[which(!fdInfo_AF$Path %in% fdInfo$Path)])
+
+fdInfo<-left_join(fdInfo,select(fdInfo_AF,Path,keep),by='Path')
+fdInfo<-arrange(fdInfo,Path)
+write.table(fdInfo,file="D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/deploy_list.tsv",sep='\t',append=F,row.names=F)
+# fdPaths<-read_delim("deploy_list_raw_AF.tsv",delim = "\t")
+rm(fdInfo)
+
+# Read in found files ---------------------------------------------------------
+
+fdInfo<-read_delim("D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/deploy_list_edited.tsv",delim = "\t")
+fdInfo<-fdInfo %>% filter(keep==T)
 # this goes through all the log files and reads the CSV in to R
-data.list1 <- lapply(a$Path, fread,sep=",")
+data.list1 <- lapply(fdInfo$Path, fread,sep=",")
 head(data.list1,1)
 
 # Add a project, fix location and rating, and add the csv path
 
-for(i in 1:length(a$Project)){
+for(i in 1:length(fdInfo$Project)){
   if("Sensor_Name" %in% names(data.list1[[i]])){print("Sensor_Name exists")}else{
     if(!("Sensor_Name" %in% names(data.list1[[i]]))&"Sensor"%in%names(data.list1[[i]])){ data.list1[[i]]$Sensor_Name<-data.list1[[i]]$Sensor;data.list1[[i]]$Sensor<-NULL }else{
       if(!("Sensor_Name" %in% names(data.list1[[i]]))&"Sensor_ID"%in%names(data.list1[[i]])){ data.list1[[i]]$Sensor_Name<-data.list1[[i]]$Sensor_ID }else{
         if(!("Sensor_Name" %in% names(data.list1[[i]]))&"SensorID"%in%names(data.list1[[i]])){ data.list1[[i]]$Sensor_Name<-data.list1[[i]]$SensorID }else{
           if(!("Sensor_Name" %in% names(data.list1[[i]]))&"SensorID"%in%names(data.list1[[i]])){ data.list1[[i]]$Sensor_Name<-data.list1[[i]]$`Recording Unit` }else{
-            stop("check your column names and make sure Sensor_Name exists")}}}}}
+            stop(paste("check your column names and make sure Sensor_Name exists for",fdInfo$Project[i]))}}}}}
   
   if(!("Easting" %in% names(data.list1[[i]]))&("x_proj" %in% names(data.list1[[i]]))){ data.list1[[i]]$Easting<-data.list1[[i]]$x_proj }
   if(!("Easting" %in% names(data.list1[[i]]))&("y_proj" %in% names(data.list1[[i]]))){ data.list1[[i]]$Easting<-data.list1[[i]]$x_proj }
@@ -59,31 +68,41 @@ for(i in 1:length(a$Project)){
   
   data.list1[[i]]<-data.list1[[i]] %>% select(one_of("SPID","Sensor_Name","Deployment_Date","Deployment_Time","Retrieval_Date",
                                                      "Retrieval_Time","Easting","Northing","Latitude","Longitude",'Island')) %>% mutate_all(.funs = as.character)
-  data.list1[[i]]$Project<-a$Project[i]
-  data.list1[[i]]$Project<-a$Project[i] 
-  data.list1[[i]]$csv_path<-a$Path[i]
+  data.list1[[i]]$Project<-fdInfo$Project[i]
+  data.list1[[i]]$Project<-fdInfo$Project[i] 
+  data.list1[[i]]$csv_path<-fdInfo$Path[i]
 
 }
 
-
+# Do we need to look at this names stuff?
 Names<-NULL
-for(i in 1:length(a$Project)){
+for(i in 1:length(fdInfo$Project)){
   Names<-bind_rows(Names,data.frame(names=c(names(data.list1[[i]])),i=i))
   print(i)
   print(data.list1[[i]]$Easting)
-  }
+}
 Names %>% dplyr::filter(names=="LOCATION")
 unique(Names$names)
-
-  
 data.frame(table(Names$names))
-SPdata<-bind_rows(data.list1)
 
-# SPdata$Island
-# write_csv(SPdata,"SPData.csv") 
-# SPdata<-read_csv("SPData.csv")
-# write_csv(data.frame(unique(SPdata %>% filter(is.na(Latitude),!is.na(Northing)) %>% select(Island) )),"espg.csv")
-ESPG<-read_csv("espg.csv") %>% mutate(UTM=str_replace_all(UTM,'\\"',""))
+# numrowstotal=0
+# for (i in 1:length(data.list1)) {
+#   numrowstotal=numrowstotal+nrow(data.list1[[i]])
+# }
+
+SPdata<-bind_rows(data.list1)
+write_csv(SPdata,'D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/SPData.csv')
+
+table(SPdata$Island)
+SPData_AF<-read_csv('D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/SPData_AF.csv')
+
+table(SPData_AF$Island)
+
+# find sensors with Northing/Easting instead of Lat/Long
+SPdata<-read_csv("D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/SPData.csv")
+write_csv(data.frame(unique(SPdata %>% filter(is.na(Latitude),!is.na(Northing)) %>% select(Island))),"D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/espg.csv")
+# add proj4strings to csv as 'UTM' column
+ESPG<-read_csv("D:/CM,Inc/Dropbox (CMI)/CMI_Team/Analysis/2018/Hawaii_Model_2018/Field_Data/espg.csv") %>% mutate(UTM=str_replace_all(UTM,'\\"',""))
                                               
 SPdata_noLat_ULP2012<-SPdata  %>% filter(is.na(Latitude),!is.na(Northing),Project=="KESRP_ULP_2012")%>% mutate(Island="Kauai") %>% left_join(ESPG)
 SPdata_noLat<-SPdata %>% filter(is.na(Latitude),!is.na(Northing),Project!="KESRP_ULP_2012")%>% left_join(ESPG)
